@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>큐아트제작소 쇼츠 - 브랜드 설정 온도</title>
+<style>
+  @font-face { font-family: 'P'; font-weight: 700; src: url('fonts/Pretendard-Bold.otf'); }
+  @font-face { font-family: 'P'; font-weight: 900; src: url('fonts/Pretendard-Black.otf'); }
+  html, body { margin: 0; background: #fff; }
+  svg { display: block; font-family: 'P', sans-serif; }
+</style>
+</head>
+<body>
+<svg id="stage" width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg"></svg>
+<script>
+// 레퍼런스(화이트보드 졸라맨 설명 영상)의 구조를 따라 큐아트제작소 메시지로 재구성한 9:16 쇼츠.
+// renderAt(t) 하나로 t초 시점의 프레임 전체를 그린다. render.js가 프레임마다 호출해 캡처한다.
+const INK = '#1b1b1b', RED = '#E5484D', PUR = '#7C5CFF', PINK = '#FF6F9F', GRAY = '#9a9a9a';
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = x => 1 - Math.pow(1 - clamp(x), 3);
+const pr = (t, s, d) => ease((t - s) / d);
+const lerp = (a, b, k) => a + (b - a) * k;
+
+// 선을 그려나가는 path. p: 0~1 진행률
+function P(d, p, { c = INK, w = 7, fill = 'none', fo = 1 } = {}) {
+  if (p <= 0) return '';
+  const f = fill === 'none' ? 'none' : fill;
+  return `<path d="${d}" pathLength="1" stroke="${c}" stroke-width="${w}" fill="${f}" fill-opacity="${fill === 'none' ? 0 : fo * p}"
+    stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1 1" stroke-dashoffset="${1 - p}"/>`;
+}
+const circ = (x, y, r) => `M${x - r} ${y} a${r} ${r} 0 1 0 ${2 * r} 0 a${r} ${r} 0 1 0 ${-2 * r} 0`;
+const rrect = (x, y, w, h, r) => `M${x + r} ${y} H${x + w - r} Q${x + w} ${y} ${x + w} ${y + r} V${y + h - r} Q${x + w} ${y + h} ${x + w - r} ${y + h} H${x + r} Q${x} ${y + h} ${x} ${y + h - r} V${y + r} Q${x} ${y} ${x + r} ${y} Z`;
+
+// 팝업 텍스트. str 안의 *강조* 는 hl 색으로
+function T(x, y, str, p, { size = 56, c = INK, hl = RED, weight = 900, anchor = 'middle', lh = 1.32 } = {}) {
+  if (p <= 0) return '';
+  const lines = str.split('\n');
+  const s = lerp(0.85, 1, p), dy = lerp(18, 0, p);
+  let out = `<g opacity="${clamp(p * 1.4)}" transform="translate(${x} ${y + dy}) scale(${s})">`;
+  lines.forEach((ln, i) => {
+    const parts = ln.split('*');
+    const spans = parts.map((pt, k) => `<tspan fill="${k % 2 ? hl : c}">${pt}</tspan>`).join('');
+    out += `<text x="0" y="${i * size * lh}" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}" dominant-baseline="middle">${spans}</text>`;
+  });
+  return out + '</g>';
+}
+
+// 화살표 (x1,y1)->(x2,y2)
+function arrow(x1, y1, x2, y2, p, c = PUR, w = 7) {
+  const a = Math.atan2(y2 - y1, x2 - x1), L = 28;
+  const hx = lerp(x1, x2, p), hy = lerp(y1, y2, p);
+  let s = P(`M${x1} ${y1} L${x2} ${y2}`, p, { c, w });
+  if (p > 0.9) {
+    const k = (p - 0.9) / 0.1;
+    s += P(`M${hx - L * Math.cos(a - 0.5)} ${hy - L * Math.sin(a - 0.5)} L${hx} ${hy} L${hx - L * Math.cos(a + 0.5)} ${hy - L * Math.sin(a + 0.5)}`, k, { c, w });
+  }
+  return s;
+}
+
+// 졸라맨. mood: smile|sad|flat, arms: down|up|pull|hold, glasses
+function fig(x, y, s, p, { mood = 'smile', arms = 'down', glasses = false, legUp = false } = {}) {
+  const r = 46 * s, ny = y + r, hip = ny + 120 * s, w = 7;
+  let o = P(circ(x, y, r), pr(p, 0, 0.35), { w });
+  o += P(`M${x} ${ny} L${x} ${hip}`, pr(p, 0.25, 0.25), { w });
+  const sh = ny + 30 * s;
+  const A = {
+    down: `M${x - 55 * s} ${sh + 70 * s} L${x} ${sh} L${x + 55 * s} ${sh + 70 * s}`,
+    up: `M${x - 60 * s} ${sh - 75 * s} L${x} ${sh} L${x + 60 * s} ${sh - 75 * s}`,
+    pull: `M${x + 75 * s} ${sh + 10 * s} L${x} ${sh} L${x + 70 * s} ${sh + 30 * s}`,
+    hold: `M${x - 70 * s} ${sh + 10 * s} L${x} ${sh + 20 * s} L${x + 70 * s} ${sh + 10 * s}`,
+  }[arms];
+  o += P(A, pr(p, 0.45, 0.3), { w });
+  const legs = legUp
+    ? `M${x - 50 * s} ${hip + 95 * s} L${x} ${hip} L${x + 60 * s} ${hip + 40 * s} L${x + 50 * s} ${hip + 95 * s}`
+    : `M${x - 50 * s} ${hip + 100 * s} L${x} ${hip} L${x + 50 * s} ${hip + 100 * s}`;
+  o += P(legs, pr(p, 0.5, 0.3), { w });
+  const fp = pr(p, 0.7, 0.3);
+  if (fp > 0) {
+    const ex = 16 * s, ey = y - 10 * s;
+    if (glasses) o += P(`M${x - 34 * s} ${ey - 8 * s} H${x + 34 * s} V${ey + 6 * s} H${x - 34 * s} Z`, fp, { w: 6, fill: INK });
+    else o += `<g opacity="${fp}"><circle cx="${x - ex}" cy="${ey}" r="${5 * s}" fill="${INK}"/><circle cx="${x + ex}" cy="${ey}" r="${5 * s}" fill="${INK}"/></g>`;
+    const my = y + 16 * s, mw = 20 * s;
+    const curve = mood === 'smile' ? 12 : mood === 'sad' ? -12 : 0;
+    o += P(`M${x - mw} ${my} Q${x} ${my + curve * s * 1.4} ${x + mw} ${my}`, fp, { w: 5 });
+  }
+  return o;
+}
+
+// 광고 카드 (레퍼런스의 은행카드 자리)
+function adCard(x, y, p, label = 'AD', w = 340, h = 210) {
+  let o = P(rrect(x - w / 2, y - h / 2, w, h, 26), pr(p, 0, 0.6), { w: 7 });
+  o += P(`M${x - w / 2} ${y - h / 2 + 52} H${x + w / 2}`, pr(p, 0.4, 0.3), { w: 6 });
+  o += T(x - w / 2 + 40, y + 30, label, pr(p, 0.5, 0.4), { size: label.length > 2 ? 46 : 60, anchor: 'start' });
+  o += P(circ(x + w / 2 - 70, y + 30, 34), pr(p, 0.6, 0.3), { c: PUR, w: 6 });
+  o += T(x + w / 2 - 70, y + 32, '₩', pr(p, 0.7, 0.3), { size: 40, c: PUR });
+  return o;
+}
+
+const icons = {
+  clinic: (x, y, p) => P(rrect(x - 110, y - 110, 220, 220, 30), pr(p, 0, 0.6)) +
+    P(`M${x} ${y - 60} V${y + 60} M${x - 60} ${y} H${x + 60}`, pr(p, 0.5, 0.5), { c: RED, w: 18 }),
+  cart: (x, y, p) => P(`M${x - 140} ${y - 90} H${x - 100} L${x - 60} ${y + 50} H${x + 100} L${x + 130} ${y - 50} H${x - 85}`, pr(p, 0, 0.7)) +
+    P(circ(x - 40, y + 95, 18), pr(p, 0.6, 0.3)) + P(circ(x + 80, y + 95, 18), pr(p, 0.7, 0.3)),
+  chart: (x, y, p) => P(`M${x - 140} ${y - 120} V${y + 110} H${x + 150}`, pr(p, 0, 0.5)) +
+    arrow(x - 110, y + 70, x + 130, y - 100, pr(p, 0.4, 0.6), RED, 9),
+  heart: (x, y, p) => P(`M${x} ${y + 100} C${x - 190} ${y - 20} ${x - 110} ${y - 160} ${x} ${y - 60} C${x + 110} ${y - 160} ${x + 190} ${y - 20} ${x} ${y + 100} Z`, pr(p, 0, 0.9), { c: RED, w: 9 }),
+};
+
+// 브랜드 배지 + 챕터 태그 (항상 표시)
+function chrome(t, tag) {
+  return `<g opacity="0.9"><circle cx="96" cy="120" r="30" fill="none" stroke="${INK}" stroke-width="6"/>
+    <path d="M110 134 L126 150" stroke="${INK}" stroke-width="6" stroke-linecap="round"/>
+    <text x="144" y="122" font-size="34" font-weight="900" dominant-baseline="middle" fill="${INK}">큐아트제작소</text></g>` +
+    (tag ? `<g><rect x="${1080 - 60 - tag.length * 30 - 40}" y="94" rx="26" width="${tag.length * 30 + 40}" height="52" fill="${PUR}"/>
+    <text x="${1080 - 60 - (tag.length * 30 + 40) / 2}" y="121" font-size="28" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="middle">${tag}</text></g>` : '');
+}
+
+// ---------- 장면 정의: [시작, 길이, 태그, draw(lt)] ----------
+const S = [];
+const add = (dur, tag, fn) => { const s = S.length ? S[S.length - 1].s + S[S.length - 1].d : 0; S.push({ s, d: dur, tag, fn }); };
+
+// 1. 오프닝 훅: 같은 문장 4번 반복
+add(8.4, '', lt => {
+  let o = adCard(540, 600, pr(lt, 0, 0.8));
+  const keys = ['clinic', 'cart', 'chart', 'heart'];
+  const i = Math.min(3, Math.floor(lt / 2.1)), l = lt - i * 2.1;
+  o += arrow(540, 730, 540, 900, pr(l, 0.1, 0.5));
+  o += icons[keys[i]](540, 1100, pr(l, 0.3, 0.9));
+  return o;
+});
+// 2. 공감: 다들 광고를 더 원한다
+add(4.4, '', lt => {
+  let o = adCard(540, 560, 1);
+  [180, 420, 660, 900].forEach((x, i) => {
+    o += fig(x, 1060, 0.85, pr(lt, i * 0.18, 1.0), { arms: 'up' });
+    o += arrow(x, 990, lerp(x, 540, 0.55), 700, pr(lt, 0.9 + i * 0.15, 0.6));
+  });
+  return o;
+});
+// 3. 반전: 빙산 (보이는 것 vs 안 보이는 것)
+add(6.4, '', lt => {
+  let o = P('M80 820 Q190 790 300 820 T520 820 T740 820 T1000 820', pr(lt, 0, 0.8), { c: PUR, w: 6 });
+  o += P('M390 820 L470 650 L525 700 L590 600 L690 820', pr(lt, 0.4, 0.8));
+  o += P('M330 840 L240 1060 L330 1310 L540 1400 L770 1300 L850 1070 L760 840', pr(lt, 0.9, 1.2), { fill: '#EEF0FF', fo: 0.8 });
+  o += T(820, 690, '광고 · 노출', pr(lt, 1.4, 0.5), { size: 48 });
+  o += T(545, 1120, '브랜드\n설정값', pr(lt, 2.6, 0.6), { size: 76, c: RED });
+  return o;
+});
+// 4. 문제: 조급함 / 끌어당기는 힘
+add(8.4, '', lt => {
+  if (lt < 4.2) {
+    let o = fig(270, 960, 1.05, pr(lt, 0, 1.0), { mood: 'sad' });
+    o += adCard(790, 1010, pr(lt, 0.3, 1.0), 'AD', 300, 190);
+    o += P('M470 880 L610 1140 M610 880 L470 1140', pr(lt, 1.3, 0.7), { c: PINK, w: 16 });
+    return o;
+  }
+  const l = lt - 4.2;
+  let o = fig(250, 960, 1.05, pr(l, 0, 0.9), { arms: 'pull' });
+  o += P('M325 1040 Q520 1080 700 1040', pr(l, 0.6, 0.6), { w: 5 });
+  [0, 1, 2].forEach(k => { o += P(rrect(700, 980 - k * 60, 250, 150, 20), pr(l, 0.8 + k * 0.2, 0.6), { fill: '#fff', fo: 1 }); });
+  o += T(825, 935, '예약 · 구매', pr(l, 1.5, 0.5), { size: 40 });
+  o += arrow(830, 1220, 480, 1220, pr(l, 1.7, 0.8));
+  return o;
+});
+// 5. 공통 전제 드러내기
+add(8.4, '', lt => {
+  const L = ['광고만 하면 환자가 늘어요', '광고만 하면 매출이 올라요', '광고만 하면 상위노출 돼요', '광고만 하면 브랜드가 생겨요'];
+  let o = '';
+  L.forEach((s, i) => {
+    const y = 470 + i * 120, p = pr(lt, i * 0.35, 0.6);
+    o += P(rrect(170, y - 45, 740, 90, 18), p, { w: 5 });
+    o += T(540, y + 2, s, p, { size: 40, weight: 700 });
+  });
+  o += arrow(540, 950, 540, 1080, pr(lt, 2.2, 0.6), INK);
+  o += P(rrect(130, 1110, 820, 150, 24), pr(lt, 3.2, 0.7), { c: RED, w: 9 });
+  o += T(540, 1186, '“광고가 부족해서 안 팔린다”', pr(lt, 3.7, 0.6), { size: 50, c: RED });
+  return o;
+});
+// 6. 반복 루프
+add(5.6, '', lt => {
+  const d = 'M540 900 C640 760 840 760 840 900 C840 1040 640 1040 540 900 C440 760 240 760 240 900 C240 1040 440 1040 540 900 Z';
+  let o = P(d, pr(lt, 0, 1.2), { w: 8 });
+  if (lt > 1.2) o += `<path d="${d}" pathLength="1" fill="none" stroke="${RED}" stroke-width="14" stroke-linecap="round" stroke-dasharray="0.08 0.92" stroke-dashoffset="${-(lt - 1.2) * 0.45}"/>`;
+  o += T(540, 1180, '대행사 A → B → C …', pr(lt, 1.6, 0.6), { size: 46, c: GRAY, weight: 700 });
+  return o;
+});
+// 7. 약속: 오늘 알려드릴 것
+add(5.6, '오늘의 주제', lt => {
+  let o = P(rrect(130, 380, 820, 220, 30), pr(lt, 0, 0.7), { c: PUR, w: 7, fill: '#F3F0FF', fo: 1 });
+  o += T(540, 455, '광고비 말고,', pr(lt, 0.5, 0.5), { size: 52, weight: 700 });
+  o += T(540, 530, '*설정값*을 바꾸는 법', pr(lt, 0.8, 0.5), { size: 64, hl: PUR });
+  o += fig(540, 900, 1.25, pr(lt, 0.6, 1.2), { legUp: true });
+  return o;
+});
+// 8. 공감되는 통증
+add(8.8, '', lt => {
+  if (lt < 4.4) {
+    const k = pr(lt, 1.6, 0.8), cy = 940;
+    let o = P(circ(540, cy, 230), pr(lt, 0, 0.8), { w: 9 });
+    o += `<g opacity="${pr(lt, 0.6, 0.4)}"><circle cx="465" cy="${cy - 50}" r="16" fill="${INK}"/><circle cx="615" cy="${cy - 50}" r="16" fill="${INK}"/></g>`;
+    const c = lerp(70, -60, k);
+    o += P(`M440 ${cy + 70} Q540 ${cy + 70 + c} 640 ${cy + 70}`, pr(lt, 0.7, 0.4), { w: 9 });
+    o += T(540, 600, '클릭 ↑', pr(lt, 0.4, 0.4), { size: 60, c: PUR }) + T(540, 1270, '예약 →', pr(lt, 1.8, 0.4), { size: 60, c: RED });
+    return o;
+  }
+  const l = lt - 4.4;
+  let o = fig(300, 960, 1.1, pr(l, 0, 0.9), { mood: 'sad', arms: 'hold' });
+  o += icons.chart(760, 900, pr(l, 0.5, 1.0));
+  o += T(760, 1140, '매출 ↑  순이익 ?', pr(l, 1.6, 0.5), { size: 44 });
+  return o;
+});
+// 9. 비유: 온도조절기
+function dial(cx, cy, r, p, ang, num = '24°') {
+  let o = P(circ(cx, cy, r), pr(p, 0, 0.6), { w: 9 });
+  for (let i = -6; i <= 6; i++) {
+    const a = (i * 20 - 90) * Math.PI / 180, r1 = r - 26, r2 = r - (i % 3 ? 44 : 60);
+    o += P(`M${cx + r1 * Math.cos(a)} ${cy + r1 * Math.sin(a)} L${cx + r2 * Math.cos(a)} ${cy + r2 * Math.sin(a)}`, pr(p, 0.4 + (i + 6) * 0.02, 0.2), { w: 5, c: i === 0 ? PINK : INK });
+  }
+  const a = (ang - 90) * Math.PI / 180;
+  o += P(`M${cx} ${cy} L${cx + (r - 70) * Math.cos(a)} ${cy + (r - 70) * Math.sin(a)}`, pr(p, 0.6, 0.3), { c: PINK, w: 10 });
+  o += T(cx, cy + r * 0.45, num, pr(p, 0.7, 0.3), { size: r * 0.42 });
+  return o;
+}
+add(10, '', lt => {
+  // 바늘이 추웠다 더웠다 흔들려도 결국 0도(=24°)로 복귀
+  const ph = lt % 3.4, amp = ph < 1.6 ? Math.sin(ph / 1.6 * Math.PI) : 0, dir = Math.floor(lt / 3.4) % 2 ? 1 : -1;
+  const ang = lt < 1.2 ? 0 : dir * 70 * amp;
+  let o = dial(540, 920, 250, pr(lt, 0, 1.2), ang);
+  o += P('M250 760 A330 330 0 0 1 400 610', pr(lt, 1.3, 0.6), { c: PUR, w: 8 }) + T(230, 650, '추움', pr(lt, 1.5, 0.4), { size: 48, c: PUR });
+  o += P('M830 760 A330 330 0 0 0 680 610', pr(lt, 1.6, 0.6), { c: RED, w: 8 }) + T(850, 650, '더움', pr(lt, 1.8, 0.4), { size: 48, c: RED });
+  return o;
+});
+// 10. 개념 명명: 브랜드 설정 온도
+add(6.4, '핵심 개념', lt => {
+  let o = dial(290, 960, 150, pr(lt, 0, 1.0), 0, '?°');
+  o += T(540, 960, '=', pr(lt, 0.8, 0.4), { size: 110 });
+  o += adCard(800, 960, pr(lt, 1.0, 1.0), '전환율', 300, 200);
+  o += T(540, 560, '브랜드 *설정 온도*', pr(lt, 1.8, 0.6), { size: 76, hl: PUR });
+  return o;
+});
+// 11. 해결: 큐아트제작소 3단계
+add(8.4, '큐아트 방식', lt => {
+  const steps = ['① 광고 목적 진단', '② 채널 성격 분석', '③ 설정값 재설계'];
+  let o = '';
+  steps.forEach((s, i) => {
+    const x = 130 + i * 260, y = 1250 - i * 190, p = pr(lt, 0.3 + i * 0.7, 0.6);
+    o += P(`M${x} ${y} H${x + 260} V${y - 190}`, p, { w: 8 });
+    o += T(x + 130, y + 60, s, pr(lt, 0.6 + i * 0.7, 0.5), { size: 38, weight: 700, c: i === 2 ? PUR : INK });
+  });
+  const k = clamp((lt - 1.0) / 3.2), sx = lerp(260, 790, k), sy = lerp(1000, 620, k);
+  o += fig(sx, sy, 0.8, pr(lt, 0.2, 1.0), { arms: k >= 1 ? 'up' : 'down' });
+  return o;
+});
+// 12. CTA
+add(6.4, '', lt => {
+  let o = P(circ(540, 760, 150), pr(lt, 0, 0.8), { w: 14 });
+  o += P('M600 830 L680 910', pr(lt, 0.6, 0.3), { w: 14, c: RED });
+  o += T(540, 1020, '큐아트제작소', pr(lt, 0.7, 0.5), { size: 96 });
+  o += T(540, 1110, '병원 · 커머스 · IT/SaaS · B2G', pr(lt, 1.0, 0.5), { size: 40, weight: 700, c: GRAY });
+  const bp = pr(lt, 1.6, 0.6);
+  o += `<g opacity="${bp}"><rect x="170" y="${1210 + (1 - bp) * 20}" width="740" height="120" rx="60" fill="${PUR}"/>
+    <text x="540" y="${1272 + (1 - bp) * 20}" font-size="46" font-weight="900" fill="#fff" text-anchor="middle" dominant-baseline="middle">무료 브랜드 채널 진단 →</text></g>`;
+  return o;
+});
+
+// ---------- 자막 (내레이션 원고와 동일) ----------
+const CAP = [
+  [0.2, 2.1, '광고만 하면, *환자*가 늘어요.'],
+  [2.1, 4.2, '광고만 하면, *매출*이 올라요.'],
+  [4.2, 6.3, '광고만 하면, *상위노출* 돼요.'],
+  [6.3, 8.4, '광고만 하면, *브랜드*가 생겨요.'],
+  [8.4, 12.8, '맞는 말 같죠?\n그래서 다들 광고를 더 원합니다.'],
+  [12.8, 19.2, '그런데 매출을 결정하는 건\n*수면 아래*에 있습니다.'],
+  [19.2, 23.4, '광고비를 쏟는다고\n고객이 오지 않습니다.'],
+  [23.4, 27.6, '고객을 끌어당기는 힘은\n광고비가 아니라 *설계*에서 나와요.'],
+  [27.6, 31.2, '방금 네 문장,\n공통 전제가 하나 있죠.'],
+  [31.2, 36.0, '바로 이 생각입니다.\n*“광고가 부족해서 안 팔린다”*'],
+  [36.0, 41.6, '이 전제가 그대로면, 대행사를 바꿔도\n*같은 결과*가 반복됩니다.'],
+  [41.6, 47.2, '오늘은 그 *설정값*을\n바꾸는 방법을 알려드릴게요.'],
+  [47.2, 51.6, '클릭은 늘었는데,\n예약은 *그대로*.'],
+  [51.6, 56.0, '매출은 올랐는데 남는 건 없다.\n왜일까요?'],
+  [56.0, 61.0, '온도조절기를 *24도*로 맞춰두면,'],
+  [61.0, 66.0, '덥든 춥든, 결국\n*24도*로 돌아오죠.'],
+  [66.0, 69.2, '광고도 똑같습니다.\n브랜드마다 *설정 온도*가 있어요.'],
+  [69.2, 72.4, '광고비를 늘려도,\n결국 그 온도로 돌아옵니다.'],
+  [72.4, 76.4, '그래서 큐아트제작소는\n*설정값*부터 다시 맞춥니다.'],
+  [76.4, 80.8, '광고 목적 → 채널 성격 →\n*브랜드 설계*까지.'],
+  [80.8, 86.8, '우리 브랜드의 설정 온도,\n지금 *무료로 진단*받아 보세요.'],
+];
+const DURATION = S[S.length - 1].s + S[S.length - 1].d;
+
+function caption(t) {
+  const c = CAP.find(([a, b]) => t >= a && t < b);
+  if (!c) return '';
+  const p = pr(t, c[0], 0.25);
+  return T(540, 1560, c[2], p, { size: 58, lh: 1.38 });
+}
+
+window.DURATION = DURATION;
+window.renderAt = function (t) {
+  const sc = S.find(s => t >= s.s && t < s.s + s.d) || S[S.length - 1];
+  const lt = t - sc.s;
+  const fadeIn = clamp(lt / 0.18), seed = Math.floor(t * 8) % 50;
+  document.getElementById('stage').innerHTML = `
+    <defs><filter id="boil" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="2" seed="${seed}"/>
+      <feDisplacementMap in="SourceGraphic" scale="5"/></filter></defs>
+    <rect width="1080" height="1920" fill="#fff"/>
+    <g filter="url(#boil)" opacity="${fadeIn}">${sc.fn(lt)}</g>
+    ${chrome(t, sc.tag)}
+    ${caption(t)}
+    <rect x="0" y="1910" width="${1080 * t / DURATION}" height="10" fill="${PUR}"/>`;
+};
+window.renderAt(Number(new URLSearchParams(location.search).get('t') || 1.5));
+</script>
+</body>
+</html>
